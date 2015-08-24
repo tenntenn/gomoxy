@@ -3,17 +3,14 @@ package main
 import (
 	"image"
 	"image/draw"
-	"image/png"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"time"
 
 	"github.com/elazarl/goproxy"
 	"github.com/golang/freetype/truetype"
-	"golang.org/x/exp/shiny/font"
 	"golang.org/x/image/math/fixed"
 	"golang.org/x/mobile/app"
 	"golang.org/x/mobile/asset"
@@ -33,6 +30,7 @@ var (
 	startTime = time.Now()
 	eng       = glsprite.Engine()
 	scene     *sprite.Node
+	font      *truetype.Font
 )
 
 func main() {
@@ -75,7 +73,7 @@ func onPaint(sz size.Event) {
 }
 
 func loadScene(sz size.Event) {
-	texs := loadTextures(sz)
+	font = loadFont()
 
 	scene = &sprite.Node{}
 	eng.Register(scene)
@@ -93,7 +91,7 @@ func loadScene(sz size.Event) {
 	scene.AppendChild(l.Node)
 }
 
-func loadTextures(sz size.Event) map[rune]sprite.SubTex {
+func loadFont() *truetype.Font {
 	ttf, err := asset.Open("luximr.ttf")
 	if err != nil {
 		log.Fatal(err)
@@ -107,46 +105,30 @@ func loadTextures(sz size.Event) map[rune]sprite.SubTex {
 		log.Fatal(err)
 	}
 
-	letters := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?"
+	return f
+}
+
+func newTextTexture(eng sprite.Engine, dst image.Image, size int, font *truetype.Font, text string) sprite.SubTex {
+
 	fg, bg := image.Black, image.White
-	rgba := image.NewRGBA(image.Rect(0, 0, len(letters)*12, 12))
 	draw.Draw(rgba, rgba.Bounds(), bg, image.ZP, draw.Src)
 	d := &font.Drawer{
-		Dst: rgba,
+		Dst: dst,
 		Src: fg,
 		Face: truetype.NewFace(f, truetype.Options{
-			Size:    12,
+			Size:    size,
 			DPI:     72,
 			Hinting: font.HintingFull,
 		}),
 	}
-	d.Dot = fixed.P(0, 10)
-	d.DrawString(letters)
+	d.Dot = fixed.P(0, size*0.8)
+	d.DrawString(text)
 
-	t, err := eng.LoadTexture(rgba)
+	t, err := eng.LoadTexture(img)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	texs := make(map[rune]sprite.SubTex, len(letters))
-
-	var prev rune
-	x := 0
-	for _, r := range letters {
-		s := int(d.Face.Kern(prev, r)) >> 6
-		texs[r] = sprite.SubTex{t, image.Rect(x, 0, x+s, 12)}
-		x += s
-		prev = r
-	}
-
-	outFile, err := os.Create("out.png")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer outFile.Close()
-	if err := png.Encode(outFile, rgba); err != nil {
-		log.Fatal(err)
-	}
-
-	return texs
+	r := dst.Bounds()
+	return sprite.SubTex{t, image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Max.Y)}
 }
