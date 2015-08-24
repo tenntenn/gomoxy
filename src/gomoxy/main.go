@@ -1,8 +1,8 @@
 package main
 
 import (
+	"fmt"
 	"image"
-	"image/draw"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,7 +11,6 @@ import (
 
 	"github.com/elazarl/goproxy"
 	"github.com/golang/freetype/truetype"
-	"golang.org/x/image/math/fixed"
 	"golang.org/x/mobile/app"
 	"golang.org/x/mobile/asset"
 	"golang.org/x/mobile/event/lifecycle"
@@ -31,6 +30,7 @@ var (
 	eng       = glsprite.Engine()
 	scene     *sprite.Node
 	font      *truetype.Font
+	label     *Label
 )
 
 func main() {
@@ -46,6 +46,9 @@ func main() {
 					re := regexp.MustCompile(`.*`)
 					proxy.OnResponse(goproxy.UrlMatches(re)).DoFunc(
 						func(res *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
+							if label != nil {
+								label.Text = fmt.Sprintf("%s%s\n", label.Text, ctx.Req.URL)
+							}
 							return res
 						})
 					go func() {
@@ -82,13 +85,13 @@ func loadScene(sz size.Event) {
 		{0, 1, 0},
 	})
 
-	l := NewLabel("hoge", texs)
-	eng.Register(l.Node)
-	eng.SetTransform(l.Node, f32.Affine{
-		{1, 0, 0},
-		{0, 1, 0},
+	label = NewLabel(sz, font, 12, image.Rect(0, 0, 400, 400))
+	eng.Register(label.Node)
+	eng.SetTransform(label.Node, f32.Affine{
+		{400, 0, 0},
+		{0, 400, 0},
 	})
-	scene.AppendChild(l.Node)
+	scene.AppendChild(label.Node)
 }
 
 func loadFont() *truetype.Font {
@@ -106,29 +109,4 @@ func loadFont() *truetype.Font {
 	}
 
 	return f
-}
-
-func newTextTexture(eng sprite.Engine, dst image.Image, size int, font *truetype.Font, text string) sprite.SubTex {
-
-	fg, bg := image.Black, image.White
-	draw.Draw(rgba, rgba.Bounds(), bg, image.ZP, draw.Src)
-	d := &font.Drawer{
-		Dst: dst,
-		Src: fg,
-		Face: truetype.NewFace(f, truetype.Options{
-			Size:    size,
-			DPI:     72,
-			Hinting: font.HintingFull,
-		}),
-	}
-	d.Dot = fixed.P(0, size*0.8)
-	d.DrawString(text)
-
-	t, err := eng.LoadTexture(img)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	r := dst.Bounds()
-	return sprite.SubTex{t, image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Max.Y)}
 }
