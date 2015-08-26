@@ -47,7 +47,7 @@ func main() {
 					proxy.OnResponse(goproxy.UrlMatches(re)).DoFunc(
 						func(res *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
 							if label != nil {
-								label.Text = fmt.Sprintf("%s%s\n", label.Text, ctx.Req.URL)
+								label.Text = fmt.Sprintf("%s\n%s\n", ctx.Req.URL, label.Text)
 							}
 							return res
 						})
