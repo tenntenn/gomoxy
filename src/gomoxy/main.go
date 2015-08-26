@@ -48,6 +48,7 @@ func main() {
 						func(res *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
 							if label != nil {
 								label.Text = fmt.Sprintf("%s\n%s\n", ctx.Req.URL, label.Text)
+								log.Println(ctx.Req.URL)
 							}
 							return res
 						})
