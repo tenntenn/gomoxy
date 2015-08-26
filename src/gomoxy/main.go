@@ -1,20 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"image"
-	"image/draw"
-	"image/png"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"time"
 
 	"github.com/elazarl/goproxy"
 	"github.com/golang/freetype/truetype"
-	"golang.org/x/exp/shiny/font"
-	"golang.org/x/image/math/fixed"
 	"golang.org/x/mobile/app"
 	"golang.org/x/mobile/asset"
 	"golang.org/x/mobile/event/lifecycle"
@@ -33,6 +29,8 @@ var (
 	startTime = time.Now()
 	eng       = glsprite.Engine()
 	scene     *sprite.Node
+	font      *truetype.Font
+	label     *Label
 )
 
 func main() {
@@ -48,6 +46,9 @@ func main() {
 					re := regexp.MustCompile(`.*`)
 					proxy.OnResponse(goproxy.UrlMatches(re)).DoFunc(
 						func(res *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
+							if label != nil {
+								label.Text = fmt.Sprintf("%s%s\n", label.Text, ctx.Req.URL)
+							}
 							return res
 						})
 					go func() {
@@ -75,7 +76,7 @@ func onPaint(sz size.Event) {
 }
 
 func loadScene(sz size.Event) {
-	texs := loadTextures(sz)
+	font = loadFont()
 
 	scene = &sprite.Node{}
 	eng.Register(scene)
@@ -84,16 +85,16 @@ func loadScene(sz size.Event) {
 		{0, 1, 0},
 	})
 
-	l := NewLabel("hoge", texs)
-	eng.Register(l.Node)
-	eng.SetTransform(l.Node, f32.Affine{
-		{1, 0, 0},
-		{0, 1, 0},
+	label = NewLabel(sz, font, 12, image.Rect(0, 0, 400, 400))
+	eng.Register(label.Node)
+	eng.SetTransform(label.Node, f32.Affine{
+		{400, 0, 0},
+		{0, 400, 0},
 	})
-	scene.AppendChild(l.Node)
+	scene.AppendChild(label.Node)
 }
 
-func loadTextures(sz size.Event) map[rune]sprite.SubTex {
+func loadFont() *truetype.Font {
 	ttf, err := asset.Open("luximr.ttf")
 	if err != nil {
 		log.Fatal(err)
@@ -107,46 +108,5 @@ func loadTextures(sz size.Event) map[rune]sprite.SubTex {
 		log.Fatal(err)
 	}
 
-	letters := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789?"
-	fg, bg := image.Black, image.White
-	rgba := image.NewRGBA(image.Rect(0, 0, len(letters)*12, 12))
-	draw.Draw(rgba, rgba.Bounds(), bg, image.ZP, draw.Src)
-	d := &font.Drawer{
-		Dst: rgba,
-		Src: fg,
-		Face: truetype.NewFace(f, truetype.Options{
-			Size:    12,
-			DPI:     72,
-			Hinting: font.HintingFull,
-		}),
-	}
-	d.Dot = fixed.P(0, 10)
-	d.DrawString(letters)
-
-	t, err := eng.LoadTexture(rgba)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	texs := make(map[rune]sprite.SubTex, len(letters))
-
-	var prev rune
-	x := 0
-	for _, r := range letters {
-		s := int(d.Face.Kern(prev, r)) >> 6
-		texs[r] = sprite.SubTex{t, image.Rect(x, 0, x+s, 12)}
-		x += s
-		prev = r
-	}
-
-	outFile, err := os.Create("out.png")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer outFile.Close()
-	if err := png.Encode(outFile, rgba); err != nil {
-		log.Fatal(err)
-	}
-
-	return texs
+	return f
 }
